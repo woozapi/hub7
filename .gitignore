@@ -31,3 +31,18 @@ package-lock.json
 auth_info_baileys_*
 auth_info_baileys_**/
 **/auth_info_baileys_*
+
+# Database
+*.sql
+
+# Build and Cache
+dist/
+build/
+.cache/
+.temp/
+.vscode/
+.idea/
+.DS_Store
+*.log
+*.tmp
+*.cache
