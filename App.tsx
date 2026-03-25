@@ -1,3 +1,4 @@
+// FLUOW AI - Main Application Entry Point
 import React, { useState } from 'react';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
