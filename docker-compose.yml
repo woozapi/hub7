@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  hub7-app:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: hub7-app
+    restart: always
+    ports:
+      - "3000:3000"
+    volumes:
+      - hub7_whatsapp_data:/app
+    environment:
+      - NODE_ENV=production
+      # VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are loaded from .env.local
+
+volumes:
+  hub7_whatsapp_data:
+    description: "Volume for persistent WhatsApp sessions"

@@ -1,16 +1,16 @@
 // FLUOW AI - Main Application Entry Point - Sync: 2026-03-25T01:34:00Z
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import AIAgent from './components/AIAgent';
 import { Settings } from './components/Settings';
 import { SuperAdmin } from './components/SuperAdmin';
 import Connection from './components/Connection';
-import Conversations from './components/Conversations';
 import Appointments from './components/Appointments';
 import PlaceholderPage from './components/PlaceholderPage';
 import SalesAutomation from './components/SalesAutomation';
 import Prospecting from './components/Prospecting';
+import Chat from './components/Chat';
 import { Login } from './components/Login';
 import { View } from './types';
 import { AuthProvider, useAuth } from './src/lib/AuthContext';
@@ -19,7 +19,25 @@ import { Icons } from './components/icons';
 
 const AppContent: React.FC = () => {
   const { user, loading, organization, profile } = useAuth();
-  const [currentView, setCurrentView] = useState<View>(View.Dashboard);
+  const [currentView, setCurrentView] = useState<View>(() => {
+    const hash = window.location.hash.replace('#', '').split('?')[0];
+    return Object.values(View).includes(hash as View) ? (hash as View) : View.Dashboard;
+  });
+
+  useEffect(() => {
+    window.location.hash = currentView;
+  }, [currentView]);
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace('#', '').split('?')[0];
+      if (Object.values(View).includes(hash as View)) {
+        setCurrentView(hash as View);
+      }
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
 
   if (!isSupabaseConfigured) {
     return (
@@ -68,8 +86,8 @@ const AppContent: React.FC = () => {
         return <Dashboard />;
       case View.AIAgent:
         return <AIAgent />;
-      case View.CRM:
-        return <Conversations />;
+      case View.Chat:
+        return <Chat />;
       case View.Appointments:
         return <Appointments />;
       case View.Prospecting:

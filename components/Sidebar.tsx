@@ -11,7 +11,7 @@ interface SidebarProps {
 const navItems = [
   { view: View.Dashboard, icon: Icons.Dashboard },
   { view: View.AIAgent, icon: Icons.AIAgent },
-  { view: View.CRM, icon: Icons.CRM },
+  { view: View.Chat, icon: Icons.Conversations },
   { view: View.Appointments, icon: Icons.Appointments },
   { view: View.Prospecting, icon: Icons.Prospecting },
   { view: View.Contacts, icon: Icons.Contacts },

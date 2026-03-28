@@ -2,11 +2,12 @@ import React from 'react';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   children: React.ReactNode;
-  variant?: 'primary' | 'secondary' | 'ghost' | 'success';
+  variant?: 'primary' | 'secondary' | 'ghost' | 'success' | 'outline';
   className?: string;
+  loading?: boolean;
 }
 
-const Button: React.FC<ButtonProps> = ({ children, variant = 'primary', className = '', ...props }) => {
+const Button: React.FC<ButtonProps> = ({ children, variant = 'primary', className = '', loading, ...props }) => {
   const baseClasses = 'px-4 py-2 rounded-md font-semibold text-sm transition-colors duration-200 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed';
 
   const variantClasses = {

@@ -299,6 +299,432 @@ async function startServer() {
     }
   });
 
+  // =====================================================================
+  // TICKETS API
+  // =====================================================================
+
+  app.get('/api/tickets', requireAuth, async (req, res) => {
+    try {
+      const orgId = req.query.orgId as string;
+      const status = req.query.status as string;
+      const token = (req as any).token;
+      
+      if (!orgId) return res.status(400).json({ error: 'orgId is required' });
+
+      const scopedClient = getScopedClient(token);
+      let query = scopedClient
+        .from('tickets')
+        .select(`
+          id, status, priority, source, unread_count, created_at, updated_at,
+          assigned_at, started_at, resolved_at, closed_at,
+          chat_id, contact_id, agent_id,
+          whatsapp_chats (jid, is_group, group_name, remote_phone, avatar_url, last_message, last_message_at),
+          whatsapp_contacts (clean_number, saved_name, pushname, profile_pic_url),
+          agents (id, name, avatar_url)
+        `)
+        .eq('organization_id', orgId);
+
+      if (status) {
+        query = query.eq('status', status);
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
+
+      if (error) throw error;
+      res.json(data || []);
+    } catch (error) {
+      console.error('Error fetching tickets:', error);
+      res.status(500).json({ error: 'Failed to fetch tickets' });
+    }
+  });
+
+  app.get('/api/tickets/:id', requireAuth, async (req, res) => {
+    try {
+      const id = req.params.id as string;
+      const token = (req as any).token;
+      
+      const scopedClient = getScopedClient(token);
+      const { data, error } = await scopedClient
+        .from('tickets')
+        .select(`
+          id, status, priority, source, unread_count, created_at, updated_at,
+          chat_id, contact_id, agent_id,
+          whatsapp_chats (jid, is_group, group_name, remote_phone, avatar_url),
+          whatsapp_contacts (clean_number, saved_name, pushname, profile_pic_url),
+          agents (id, name, avatar_url)
+        `)
+        .eq('id', id)
+        .single();
+
+      if (error) throw error;
+      res.json(data);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to fetch ticket' });
+    }
+  });
+
+  app.post('/api/tickets/:id/assign', requireAuth, async (req, res) => {
+    try {
+      const id = req.params.id as string;
+      const { agent_id } = req.body;
+      const token = (req as any).token;
+
+      const scopedClient = getScopedClient(token);
+      const { error } = await scopedClient
+        .from('tickets')
+        .update({ 
+          agent_id, 
+          status: 'open',
+          assigned_at: new Date().toISOString(),
+          started_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to assign ticket' });
+    }
+  });
+
+  app.post('/api/tickets/:id/status', requireAuth, async (req, res) => {
+    try {
+      const id = req.params.id as string;
+      const { status } = req.body;
+      const token = (req as any).token;
+
+      const updateData: any = { 
+        status,
+        updated_at: new Date().toISOString()
+      };
+
+      if (status === 'resolved') updateData.resolved_at = new Date().toISOString();
+      if (status === 'closed') updateData.closed_at = new Date().toISOString();
+
+      const scopedClient = getScopedClient(token);
+      const { error } = await scopedClient
+        .from('tickets')
+        .update(updateData)
+        .eq('id', id);
+
+      if (error) throw error;
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to update ticket status' });
+    }
+  });
+
+  app.get('/api/tickets/:id/messages', requireAuth, async (req, res) => {
+    try {
+      const id = req.params.id as string;
+      const token = (req as any).token;
+      
+      const scopedClient = getScopedClient(token);
+      const { data, error } = await scopedClient
+        .from('ticket_messages')
+        .select('*')
+        .eq('ticket_id', id)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+      res.json(data || []);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to fetch ticket messages' });
+    }
+  });
+
+  app.post('/api/tickets/:id/messages', requireAuth, async (req, res) => {
+    try {
+      const id = req.params.id as string;
+      const { content, is_internal } = req.body;
+      const token = (req as any).token;
+      const user = (req as any).user;
+
+      if (!content) return res.status(400).json({ error: 'content is required' });
+
+      const scopedClient = getScopedClient(token);
+
+      const { data: ticket } = await scopedClient
+        .from('tickets')
+        .select('agent_id, chat_id')
+        .eq('id', id)
+        .single();
+
+      const { error } = await scopedClient
+        .from('ticket_messages')
+        .insert({
+          ticket_id: id,
+          content,
+          from_type: 'agent',
+          sender_id: user.id,
+          agent_id: ticket?.agent_id,
+          is_internal: is_internal || false
+        });
+
+      if (error) throw error;
+
+      await scopedClient
+        .from('tickets')
+        .update({ updated_at: new Date().toISOString() })
+        .eq('id', id);
+
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to add ticket message' });
+    }
+  });
+
+  // =====================================================================
+  // AGENTS API
+  // =====================================================================
+
+  app.get('/api/agents', requireAuth, async (req, res) => {
+    try {
+      const orgId = req.query.orgId as string;
+      const token = (req as any).token;
+      
+      if (!orgId) return res.status(400).json({ error: 'orgId is required' });
+
+      const scopedClient = getScopedClient(token);
+      const { data, error } = await scopedClient
+        .from('agents')
+        .select('*')
+        .eq('organization_id', orgId)
+        .eq('is_active', true)
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      res.json(data || []);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to fetch agents' });
+    }
+  });
+
+  app.post('/api/agents', requireAuth, async (req, res) => {
+    try {
+      const { name, description, greeting_message } = req.body;
+      const orgId = req.query.orgId as string;
+      const token = (req as any).token;
+      
+      if (!name || !orgId) return res.status(400).json({ error: 'name and orgId are required' });
+
+      const scopedClient = getScopedClient(token);
+      const { data, error } = await scopedClient
+        .from('agents')
+        .insert({
+          organization_id: orgId,
+          name,
+          description,
+          greeting_message
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      res.json(data);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to create agent' });
+    }
+  });
+
+  app.put('/api/agents/:id', requireAuth, async (req, res) => {
+    try {
+      const id = req.params.id as string;
+      const { name, description, greeting_message, is_active } = req.body;
+      const token = (req as any).token;
+
+      const scopedClient = getScopedClient(token);
+      const { error } = await scopedClient
+        .from('agents')
+        .update({ 
+          name, 
+          description, 
+          greeting_message,
+          is_active,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to update agent' });
+    }
+  });
+
+  app.delete('/api/agents/:id', requireAuth, async (req, res) => {
+    try {
+      const id = req.params.id as string;
+      const token = (req as any).token;
+
+      const scopedClient = getScopedClient(token);
+      const { error } = await scopedClient
+        .from('agents')
+        .update({ is_active: false })
+        .eq('id', id);
+
+      if (error) throw error;
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to delete agent' });
+    }
+  });
+
+  // =====================================================================
+  // FLOWS API
+  // =====================================================================
+
+  app.get('/api/flows', requireAuth, async (req, res) => {
+    try {
+      const orgId = req.query.orgId as string;
+      const token = (req as any).token;
+      
+      if (!orgId) return res.status(400).json({ error: 'orgId is required' });
+
+      const scopedClient = getScopedClient(token);
+      const { data, error } = await scopedClient
+        .from('flows')
+        .select('*')
+        .eq('organization_id', orgId)
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      res.json(data || []);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to fetch flows' });
+    }
+  });
+
+  app.post('/api/flows', requireAuth, async (req, res) => {
+    try {
+      const { name, description, nodes, edges, trigger_type, trigger_config } = req.body;
+      const orgId = req.query.orgId as string;
+      const token = (req as any).token;
+      
+      if (!name || !orgId) return res.status(400).json({ error: 'name and orgId are required' });
+
+      const scopedClient = getScopedClient(token);
+      const { data, error } = await scopedClient
+        .from('flows')
+        .insert({
+          organization_id: orgId,
+          name,
+          description,
+          nodes: nodes || [],
+          edges: edges || [],
+          trigger_type,
+          trigger_config: trigger_config || {}
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      res.json(data);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to create flow' });
+    }
+  });
+
+  app.put('/api/flows/:id', requireAuth, async (req, res) => {
+    try {
+      const id = req.params.id as string;
+      const { name, description, nodes, edges, is_active, trigger_type, trigger_config } = req.body;
+      const token = (req as any).token;
+
+      const scopedClient = getScopedClient(token);
+      const { error } = await scopedClient
+        .from('flows')
+        .update({ 
+          name, 
+          description, 
+          nodes,
+          edges,
+          is_active,
+          trigger_type,
+          trigger_config,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to update flow' });
+    }
+  });
+
+  // =====================================================================
+  // QUICK REPLIES API
+  // =====================================================================
+
+  app.get('/api/quick-replies', requireAuth, async (req, res) => {
+    try {
+      const orgId = req.query.orgId as string;
+      const token = (req as any).token;
+      
+      if (!orgId) return res.status(400).json({ error: 'orgId is required' });
+
+      const scopedClient = getScopedClient(token);
+      const { data, error } = await scopedClient
+        .from('quick_replies')
+        .select('*')
+        .eq('organization_id', orgId)
+        .order('shortcut', { ascending: true });
+
+      if (error) throw error;
+      res.json(data || []);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to fetch quick replies' });
+    }
+  });
+
+  app.post('/api/quick-replies', requireAuth, async (req, res) => {
+    try {
+      const { shortcut, message, category, agent_id } = req.body;
+      const orgId = req.query.orgId as string;
+      const token = (req as any).token;
+      
+      if (!shortcut || !message || !orgId) return res.status(400).json({ error: 'shortcut, message and orgId are required' });
+
+      const scopedClient = getScopedClient(token);
+      const { data, error } = await scopedClient
+        .from('quick_replies')
+        .insert({
+          organization_id: orgId,
+          shortcut,
+          message,
+          category,
+          agent_id
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      res.json(data);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to create quick reply' });
+    }
+  });
+
+  app.delete('/api/quick-replies/:id', requireAuth, async (req, res) => {
+    try {
+      const id = req.params.id as string;
+      const token = (req as any).token;
+
+      const scopedClient = getScopedClient(token);
+      const { error } = await scopedClient
+        .from('quick_replies')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to delete quick reply' });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({

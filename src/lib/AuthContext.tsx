@@ -27,6 +27,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     loadingRef.current = true;
     setLoading(true);
     
+    // Prevent infinite loop if RLS policy is broken
+    const lastFetch = sessionStorage.getItem('lastProfileFetch');
+    const now = Date.now();
+    if (lastFetch && now - parseInt(lastFetch) < 1000) {
+      console.warn('AuthContext: Throttling fetchProfileAndOrg to prevent infinite recursion loop.');
+      setLoading(false);
+      loadingRef.current = false;
+      return;
+    }
+    sessionStorage.setItem('lastProfileFetch', now.toString());
+
+    
     console.log('AuthContext: Fetching profile and org for:', userId, email);
     try {
       let { data: profileData, error: profileError } = await supabase

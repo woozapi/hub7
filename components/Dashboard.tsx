@@ -61,8 +61,8 @@ const Dashboard: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         <Card className="lg:col-span-2">
           <h2 className="text-lg font-semibold text-brand-text-primary mb-4">Status das Negociações</h2>
-          <div style={{ width: '100%', height: 300 }}>
-            <ResponsiveContainer>
+          <div style={{ width: '100%', height: 300, minWidth: 0, minHeight: 300 }}>
+            <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} fill="#8884d8" paddingAngle={5} dataKey="value" labelLine={false}>
                   {pieData.map((entry, index) => (
@@ -77,8 +77,8 @@ const Dashboard: React.FC = () => {
         </Card>
         <Card className="lg:col-span-3">
           <h2 className="text-lg font-semibold text-brand-text-primary mb-4">Negociações por Estágio</h2>
-          <div style={{ width: '100%', height: 300 }}>
-            <ResponsiveContainer>
+          <div style={{ width: '100%', height: 300, minWidth: 0, minHeight: 300 }}>
+            <ResponsiveContainer width="100%" height="100%">
               <BarChart data={barData} layout="vertical" margin={{ top: 5, right: 20, left: 100, bottom: 5 }}>
                 <XAxis type="number" stroke="#4B5563" fontSize={12} />
                 <YAxis dataKey="name" type="category" stroke="#4B5563" fontSize={12} width={150} tick={{ fill: '#111827' }} />

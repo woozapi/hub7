@@ -1,7 +1,7 @@
 export enum View {
   Dashboard = 'Dashboard',
   AIAgent = 'Agente de IA',
-  CRM = 'CRM',
+  Chat = 'Chat',
   Appointments = 'Agendamentos',
   Prospecting = 'Prospectar',
   Contacts = 'Contatos',
